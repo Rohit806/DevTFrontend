@@ -1,26 +1,30 @@
-import { useState } from "react";
-import Navbar from "./Components/Navbar";
-import { BrowserRouter, Routes, Route } from "react-router";
-import Body from "./Components/body";
-import Login from "./Components/Login";
+import { useEffect, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router";
+import { api } from "./lib/api";
+import { AuthContext } from "./lib/auth";
+import AuthPage from "./pages/AuthPage";
+import Dashboard from "./pages/Dashboard";
 
-import "./App.css";
+function AppRoutes() {
+  const [user, setUser] = useState(null);
+  const [checking, setChecking] = useState(true);
 
-function App() {
+  useEffect(() => {
+    api.profile().then(setUser).catch(() => setUser(null)).finally(() => setChecking(false));
+  }, []);
+
+  if (checking) return <div className="grid min-h-screen place-items-center bg-[#faf9f6]"><span className="loading loading-spinner loading-lg text-rose-500" /></div>;
+
   return (
-    <>
-      {/* <Navbar /> */}
-      {/* <h1 className="underline">Hello</h1> */}
-      <BrowserRouter basename="/">
-        <Routes>
-          <Route path="/" element={<Body />}>
-            <Route path="/login" element={<Login />} />
-             <Route path="/profile" element={"profile"} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </>
+    <AuthContext.Provider value={{ user, setUser }}>
+      <Routes>
+        <Route path="/auth" element={user ? <Navigate to="/discover" replace /> : <AuthPage />} />
+        <Route path="/*" element={user ? <Dashboard /> : <Navigate to="/auth" replace />} />
+      </Routes>
+    </AuthContext.Provider>
   );
 }
 
-export default App;
+export default function App() {
+  return <BrowserRouter><AppRoutes /></BrowserRouter>;
+}
