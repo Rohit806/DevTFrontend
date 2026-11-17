@@ -1,48 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import Avatar from "../Components/Avatar";
 import Notice from "../Components/Notice";
 import PageHeading from "../Components/PageHeading";
-import { api } from "../lib/api";
-import { fullName, getErrorMessage } from "../lib/format";
+import { fullName } from "../lib/format";
+import { loadFeed, sendConnectionRequest } from "../store/feedSlice";
 
 export default function DiscoverPage() {
-  const [people, setPeople] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [action, setAction] = useState(false);
-  const [notice, setNotice] = useState("");
-  const load = useCallback(async (showLoading = true) => {
-    if (showLoading) {
-      setLoading(true);
-      setError("");
-    }
-    try {
-      setPeople(await api.feed());
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => {
-    load(false);
-  }, [load]);
-  async function decide(status) {
+  const dispatch = useDispatch();
+  const { people, status, actionStatus, error, notice } = useSelector((state) => state.feed);
+  const loading = status === "loading";
+  const action = actionStatus === "loading";
+  useEffect(() => { dispatch(loadFeed()); }, [dispatch]);
+  function decide(status) {
     const person = people[0];
     if (!person || action) return;
-    setAction(true);
-    setNotice("");
-    try {
-      await api.sendRequest(status, person._id);
-      setPeople((items) => items.slice(1));
-      if (status === "interested")
-        setNotice(`You’re interested in ${person.firstName}.`);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setAction(false);
-    }
+    dispatch(sendConnectionRequest({ status, userId: person._id }));
   }
   const person = people[0];
   return (
@@ -63,7 +36,7 @@ export default function DiscoverPage() {
           {notice}
         </div>
       )}
-      <Notice error={error} onRetry={load} />
+      <Notice error={error} onRetry={() => dispatch(loadFeed())} />
       {loading ? (
         <div className="grid min-h-[460px] place-items-center">
           <span className="loading loading-spinner loading-lg text-rose-500" />
@@ -171,7 +144,7 @@ export default function DiscoverPage() {
               soon and see who joins.
             </p>
             <button
-              onClick={load}
+              onClick={() => dispatch(loadFeed())}
               className="mt-6 rounded-full border border-stone-200 bg-white px-5 py-2.5 text-sm font-bold hover:border-rose-300"
             >
               Refresh feed

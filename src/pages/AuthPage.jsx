@@ -1,43 +1,35 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { api } from "../lib/api";
+import { useDispatch, useSelector } from "react-redux";
 import { GENDERS } from "../lib/constants";
-import { useAuth } from "../lib/auth";
-import { getErrorMessage } from "../lib/format";
+import { clearAuthError, signIn, signUp } from "../store/authSlice";
+import ThemeToggle from "../Components/ThemeToggle";
 
 export default function AuthPage() {
-  const { setUser } = useAuth();
+  const dispatch = useDispatch();
+  const { authStatus, error } = useSelector((state) => state.auth);
   const navigate = useNavigate();
   const [mode, setMode] = useState("login");
   const [form, setForm] = useState({ firstName: "", lastName: "", emailId: "", password: "", age: "", gender: "", skills: "" });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const busy = authStatus === "loading";
   const signup = mode === "signup";
   function update(event) { setForm({ ...form, [event.target.name]: event.target.value }); }
   async function submit(event) {
-    event.preventDefault(); setBusy(true); setError("");
-    try {
-      if (signup) {
-        await api.signup({ firstName: form.firstName.trim(), lastName: form.lastName.trim(), emailId: form.emailId.trim(), password: form.password, age: form.age ? Number(form.age) : undefined, gender: form.gender || undefined, skills: form.skills.split(",").map((skill) => skill.trim()).filter(Boolean) });
-        await api.login({ emailId: form.emailId.trim(), password: form.password });
-        const skills = form.skills.split(",").map((skill) => skill.trim()).filter(Boolean);
-        if (skills.length) await api.updateProfile({ skills });
-      } else {
-        await api.login({ emailId: form.emailId.trim(), password: form.password });
-      }
-      try {
-        setUser(await api.profile());
-      } catch (profileError) {
-        if (/token is not valid/i.test(getErrorMessage(profileError))) {
-          throw new Error("Your email and password were accepted, but the browser did not send the session cookie to the profile request. Restart the backend and frontend, then open the frontend using localhost (not 127.0.0.1). Check that POST /login sets a token cookie.", { cause: profileError });
-        }
-        throw profileError;
-      }
-      navigate("/discover", { replace: true });
-    } catch (err) { setError(getErrorMessage(err)); }
-    finally { setBusy(false); }
+    event.preventDefault();
+    if (signup) {
+      const result = await dispatch(signUp({
+        firstName: form.firstName.trim(), lastName: form.lastName.trim(), emailId: form.emailId.trim(),
+        password: form.password, age: form.age ? Number(form.age) : undefined,
+        gender: form.gender || undefined, skills: form.skills.split(",").map((skill) => skill.trim()).filter(Boolean),
+      }));
+      if (signUp.fulfilled.match(result)) navigate("/discover", { replace: true });
+    } else {
+      const result = await dispatch(signIn({ emailId: form.emailId.trim(), password: form.password }));
+      if (signIn.fulfilled.match(result)) navigate("/discover", { replace: true });
+    }
   }
-  return <div className="grid min-h-screen bg-[#faf9f6] lg:grid-cols-[1fr_1fr]">
+  return <div className="relative grid min-h-screen bg-[#faf9f6] lg:grid-cols-[1fr_1fr]">
+    <ThemeToggle className="fixed right-5 top-5 z-50 shadow-sm" />
     <section className="relative hidden overflow-hidden bg-[#292320] p-12 text-white lg:flex lg:flex-col lg:justify-between xl:p-16">
       <div className="absolute -right-24 top-24 h-80 w-80 rounded-full bg-rose-500/20 blur-3xl"/><div className="absolute -bottom-24 -left-20 h-96 w-96 rounded-full bg-orange-300/10 blur-3xl"/>
       <a href="/auth" className="relative flex items-center gap-3 text-lg font-extrabold"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-rose-500 text-xl">d</span>DevTinder<span className="text-rose-400">.</span></a>
@@ -47,7 +39,7 @@ export default function AuthPage() {
     <section className="flex items-center justify-center px-5 py-10 sm:px-10"><div className="w-full max-w-[440px]">
       <div className="mb-10 lg:hidden"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-rose-500 text-xl font-black text-white">d</span><p className="mt-4 text-xl font-extrabold">DevTinder<span className="text-rose-500">.</span></p></div>
       <p className="text-sm font-bold uppercase tracking-[.18em] text-rose-500">{signup ? "Create your profile" : "Welcome back"}</p><h2 className="mt-3 text-3xl font-extrabold tracking-tight">{signup ? "Find your people." : "Good to see you."}</h2><p className="mt-2 text-sm leading-6 text-stone-500">{signup ? "A great collaboration can start with a hello." : "Pick up where your next great collaboration begins."}</p>
-      <div className="mt-7 grid grid-cols-2 rounded-xl bg-stone-100 p-1"><button onClick={() => { setMode("login"); setError(""); }} className={`rounded-lg py-2.5 text-sm font-bold ${!signup ? "bg-white text-stone-900 shadow-sm" : "text-stone-500"}`}>Sign in</button><button onClick={() => { setMode("signup"); setError(""); }} className={`rounded-lg py-2.5 text-sm font-bold ${signup ? "bg-white text-stone-900 shadow-sm" : "text-stone-500"}`}>Create account</button></div>
+      <div className="mt-7 grid grid-cols-2 rounded-xl bg-stone-100 p-1"><button onClick={() => { setMode("login"); dispatch(clearAuthError()); }} className={`rounded-lg py-2.5 text-sm font-bold ${!signup ? "bg-white text-stone-900 shadow-sm" : "text-stone-500"}`}>Sign in</button><button onClick={() => { setMode("signup"); dispatch(clearAuthError()); }} className={`rounded-lg py-2.5 text-sm font-bold ${signup ? "bg-white text-stone-900 shadow-sm" : "text-stone-500"}`}>Create account</button></div>
       <form onSubmit={submit} className="mt-6 space-y-4">
         {signup && <div className="grid grid-cols-2 gap-3"><Field label="First name" name="firstName" value={form.firstName} onChange={update} required/><Field label="Last name" name="lastName" value={form.lastName} onChange={update}/></div>}
         <Field label="Email address" name="emailId" type="email" value={form.emailId} onChange={update} placeholder="you@example.com" required autoComplete="email"/>

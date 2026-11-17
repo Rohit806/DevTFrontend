@@ -1,42 +1,27 @@
+import axios from "axios";
 import { API_BASE_URL } from "./constants";
 
-async function request(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    credentials: "include",
-    headers: {
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...options.headers,
-    },
-  });
-  const type = response.headers.get("content-type") || "";
-  const payload = type.includes("application/json")
-    ? await response.json()
-    : await response.text();
-  if (!response.ok) {
-    const message =
-      typeof payload === "string"
-        ? payload
-        : payload.message || payload.error || "Something went wrong";
-    throw new Error(message.replace(/^Error[^:]*:\s*/i, ""));
-  }
-  return payload;
+export const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+  headers: { "Content-Type": "application/json" },
+});
+
+export function getApiError(error) {
+  const data = error?.response?.data;
+  const message = typeof data === "string" ? data : data?.message || data?.error;
+  return (message || error?.message || "Something went wrong. Please try again.").replace(/^Error[^:]*:\s*/i, "");
 }
 
 export const api = {
-  signup: (data) =>
-    request("/signup", { method: "POST", body: JSON.stringify(data) }),
-  login: (data) =>
-    request("/login", { method: "POST", body: JSON.stringify(data) }),
-  logout: () => request("/logout", { method: "POST" }),
-  profile: () => request("/profile/view"),
-  updateProfile: (data) =>
-    request("/profile/edit", { method: "PATCH", body: JSON.stringify(data) }),
-  feed: () => request("/user/feed"),
-  incoming: () => request("/user/requests/received"),
-  connections: () => request("/user/connections"),
-  sendRequest: (status, userId) =>
-    request(`/request/send/${status}/${userId}`, { method: "POST" }),
-  reviewRequest: (status, requestId) =>
-    request(`/request/review/${status}/${requestId}`, { method: "POST" }),
+  signup: (data) => apiClient.post("/signup", data).then(({ data: result }) => result),
+  login: (data) => apiClient.post("/login", data).then(({ data: result }) => result),
+  logout: () => apiClient.post("/logout").then(({ data: result }) => result),
+  profile: () => apiClient.get("/profile/view").then(({ data }) => data),
+  updateProfile: (data) => apiClient.patch("/profile/edit", data).then(({ data: result }) => result),
+  feed: () => apiClient.get("/user/feed").then(({ data }) => data),
+  incoming: () => apiClient.get("/user/requests/received").then(({ data }) => data),
+  connections: () => apiClient.get("/user/connections").then(({ data }) => data),
+  sendRequest: (status, userId) => apiClient.post(`/request/send/${status}/${userId}`).then(({ data }) => data),
+  reviewRequest: (status, requestId) => apiClient.post(`/request/review/${status}/${requestId}`).then(({ data }) => data),
 };
